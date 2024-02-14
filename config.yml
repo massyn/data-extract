@@ -1,0 +1,17 @@
+---
+plugin: jira_search
+table: jira_search
+variables:
+  username: ${JIRA_USERNAME}
+  password: ${JIRA_PASSWORD}
+  endpoint: ${JIRA_ENDPOINT}
+  jql: project = "ABC"
+---
+plugin: write_json
+variables:
+  output: data/$TABLE/$YYYY/$MM/$DD/$UUID.json
+---
+plugin: write_s3
+variables:
+  bucket: my-fancy-bucket-name
+  key: data/$TABLE/$YYYY/$MM/$DD/$UUID.json
