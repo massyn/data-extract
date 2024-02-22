@@ -41,9 +41,13 @@ class Nullify:
             print(req.content)
             return []
         else:
-            print(req.content)
             response = req.json()
-            return response['events']
+            if response['events'] is None:
+                self.collector.log('WARNING','No events received')
+                return []
+            else:
+                self.collector.log('SUCCESS',f"Retrieved {len(response['events'])} events")
+                return response['events']
         
     def sca_counts(self):
         req = requests.get(
