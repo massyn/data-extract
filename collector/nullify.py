@@ -41,6 +41,7 @@ class Nullify:
             print(req.content)
             return []
         else:
+            print(req.content)
             response = req.json()
             return response['events']
         
