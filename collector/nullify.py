@@ -36,6 +36,7 @@ class Nullify:
             headers = self.headers,
             timeout = 30
         )
+        self.collector.log('INFO',f'Status code : {req.status_code}')
         if req.status_code != 200:
             print(req.content)
             return []
@@ -49,6 +50,7 @@ class Nullify:
             headers = self.headers,
             timeout = 30
         )
+        self.collector.log('INFO',f'Status code : {req.status_code}')
         if req.status_code != 200:
             print(req.content)
             return []
@@ -62,6 +64,7 @@ class Nullify:
             headers = self.headers,
             timeout = 30
         )
+        self.collector.log('INFO',f'Status code : {req.status_code}')
         if req.status_code != 200:
             print(req.content)
             return []
