@@ -6,6 +6,7 @@ import datetime
 import yaml
 from collector import Collector
 from collector.jira import Jira
+from collector.nullify import Nullify
 import boto3
 import botocore
 
