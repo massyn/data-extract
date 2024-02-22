@@ -55,8 +55,18 @@ def main():
             "password"  : None,
             "jql"       : None
         },
+        "nullify_sca_events" : {
+            "endpoint"      : None,
+            "githubOwnerId" : None,
+            "token"         : None,
+            "fromTime"      : (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=31)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        },
         "write_json" : {
             "output" : "data/$TABLE/$YEAR/$MONTH/$DAY/$UUID.json"
+        },
+        "write_s3" : {
+            "bucket" : None,
+            "key" : "data/$TABLE/$YEAR/$MONTH/$DAY/$UUID.json"
         }
     }
 
@@ -117,6 +127,9 @@ def main():
 
         if S['plugin'] == 'jira_search':
             data = Jira(**S['variables']).search(S['variables']['jql'])
+
+        if S['plugin'] == 'nullify_sca_events':
+            data = Nullify(**S['variables']).sca_events(S['variables']['fromTime'])
 
         for D in dest:
             if len(data) != 0:
