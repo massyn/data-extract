@@ -12,7 +12,7 @@ table: nullify_sca_events
 variables:
   endpoint: ${NULLIFY_ENDPOINT}
   token: ${NULLIFY_TOKEN}
-  githubOrgId:  ${NULLIFY_GITHUB_ORG_ID}
+  githubOwnerId:  ${NULLIFY_GITHUB_OWNER_ID}
   #fromTime: "2006-01-02T15:04:05Z"
 ---
 plugin: write_json
