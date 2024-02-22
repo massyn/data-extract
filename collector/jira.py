@@ -48,7 +48,7 @@ class Jira:
                 timeout = 30
             )
 
-            if req.status_code == 208:
+            if req.status_code == 200:
                 result = req.json()
                 if len(result['issues']) == 0:
                     break
