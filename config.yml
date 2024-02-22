@@ -7,6 +7,14 @@ variables:
   endpoint: ${JIRA_ENDPOINT}
   jql: project = "ABC"
 ---
+plugin: nullify_sca_events
+table: nullify_sca_events
+variables:
+  endpoint: ${NULLIFY_ENDPOINT}
+  token: ${NULLIFY_TOKEN}
+  githubOrgId:  ${NULLIFY_GITHUB_ORG_ID}
+  #fromTime: "2006-01-02T15:04:05Z"
+---
 plugin: write_json
 variables:
   output: data/$TABLE/$YYYY/$MM/$DD/$UUID.json
