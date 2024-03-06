@@ -1,4 +1,2 @@
-pyyaml
-argsparse
 boto3
 json
