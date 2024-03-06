@@ -20,6 +20,7 @@ Generic data extractor that uses environment variables to determine what needs t
 ||NULLIFY_ENDPOINT|Mandatory|
 ||NULLIFY_GITHUB_OWNER_ID|Mandatory|
 ||NULLIFY_FROM_TIME|Defaults to the last 7 days|
+|**Snyk**|SNYK_TOKEN|Mandatory|
 
 #### Destinations
 
