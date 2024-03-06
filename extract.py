@@ -1,166 +1,115 @@
-import argparse
 import json
 import os
 import uuid
 import datetime
-import yaml
-from collector import Collector
 from collector.jira import Jira
 from collector.nullify import Nullify
 import boto3
 import botocore
 
-def replace_env_variable(input_string):
-    if input_string is None:
-        return input_string
+def variables(X):
+    data = {}
+    for x in X:
+        if X[x] is not None:
+            data[x] = X[x]
+        if x not in os.environ:
+            if data.get(x) is None:
+                print(f"Variable {x} is not set")
+                return False
+        else:
+            data[x] = os.environ[x]
+    return data
 
-    # Find all occurrences of ${...} in the input string
-    start_index = input_string.find('${')
-    while start_index != -1:
-        end_index = input_string.find('}', start_index + 2)
-        
-        if end_index == -1:
-            break  # Exit if closing '}' not found
+def upload(data,tag):
+    print(f"Uploading {len(data)} records for {tag}...")
+    if data == []:
+        print(f"No data found for {tag}.")
+    else:
+        # -- define the list of variables that will be used in the substition function
+        VARS = {
+            'YYYY'      : datetime.datetime.now(datetime.UTC).strftime('%Y'),
+            'MM'        : datetime.datetime.now(datetime.UTC).strftime('%m'),
+            'DD'        : datetime.datetime.now(datetime.UTC).strftime('%d'),
+            'UUID'      : str(uuid.uuid4()),
+            'TAG'       : tag,
+        }
 
-        # Extract the variable name between ${ and }
-        variable_name = input_string[start_index + 2:end_index]
+        # -- upload local file
+        v = variables({
+            'UPLOAD_TARGET' : 'data/$TAG/$YYYY/$MM/$DD/$UUID.json'
+        })
+        if v:
+            path = v['UPLOAD_TARGET']
+            for x in VARS:
+                path = path.replace(f"${x}",VARS[x])
+            print(f"Uploading {len(data)} records for {tag} --> {path}")
+            try:
+                os.makedirs(os.path.dirname(path),exist_ok = True)        
+                with open(path,"wt",encoding='UTF-8') as q:
+                    q.write(json.dumps(data,default=str))
+            except:
+                print("ERROR - cannot write the file")
 
-        # Get the environment variable value
-        if not variable_name in os.environ:
-            log('ERROR',f'Environment variable {variable_name} is not found')
-            return None
-
-        env_value = os.environ.get(variable_name, f'${{{variable_name}}}')
-
-        # Replace the ${...} with the environment variable value
-        input_string = input_string[:start_index] + env_value + input_string[end_index + 1:]
-
-        # Find the next occurrence of ${...}
-        start_index = input_string.find('${', end_index + 1)
-
-    return input_string
+        # -- upload a file to AWS S3
+        v = variables({
+            'UPLOAD_TARGET' : 'data/$TAG/$YYYY/$MM/$DD/$UUID.json',
+            'UPLOAD_S3_BUCKET' : None
+        })
+        if v:
+            path = v['UPLOAD_TARGET']
+            for x in VARS:
+                path = path.replace(f"${x}",VARS[x])
+            print(f"Uploading {len(data)} records for {tag} --> s3://{v['UPLOAD_S3_BUCKET']}/{path}")
+            try:
+                boto3.client('s3').put_object(
+                    Body = json.dumps(data,default=str),
+                    Bucket = v['UPLOAD_S3_BUCKET'],
+                    Key = path,
+                    ACL='bucket-owner-full-control'
+                )
+            except botocore.exceptions.ClientError as error:
+                print(f"ERROR - s3.put_object - {error.response['Error']['Code']}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Data Extractor')
-    parser.add_argument('-config',help='Specify the yaml config file',default='config.yml')
-    args = parser.parse_args()
+    # -- jira
+    x = variables({
+        'JIRA_ENDPOINT' : None,
+        'JIRA_USERNAME' : None,
+        'JIRA_PASSWORD' : None,
+        'JIRA_JQL'      : 'project="ABC"',
+        'JIRA_TAG'      : 'jira_search'
+    })
+    if x:
+        print(f"==> {x['JIRA_TAG']} - Extracting....")
+        data = Jira(**x).search(x['JIRA_JQL'])
+        upload(data,x['JIRA_TAG'])
+    
+    # -- nullify
+    x = variables({
+        'NULLIFY_TOKEN'             : None,
+        'NULLIFY_ENDPOINT'          : None,
+        'NULLIFY_GITHUB_OWNER_ID'   : None,
+        'NULLIFY_FROM_TIME'         : (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    })
+    if x:
+        print(f"==> nullify_sca_events - Extracting....")
+        data = Nullify(**x).sca_events(x['NULLIFY_FROM_TIME'])
+        upload(data,'nullify_sca_events')
 
-    C = Collector()
+        print(f"==> nullify_sast_events - Extracting....")
+        data = Nullify(**x).sast_events(x['NULLIFY_FROM_TIME'])
+        upload(data,'nullify_sast_events')
 
-    # here we define which variables we expect for every plugin.
-    # - define a variable, and its default value.
-    VARS = {
-        "jira_search" : {
-            "endpoint"  : None,
-            "username"  : None,
-            "password"  : None,
-            "jql"       : None
-        },
-        "nullify_sca_events" : {
-            "endpoint"      : None,
-            "githubOwnerId" : None,
-            "token"         : None,
-            "fromTime"      : (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=31)).strftime('%Y-%m-%dT%H:%M:%SZ')
-        },
-        "write_json" : {
-            "output" : "data/$TABLE/$YEAR/$MONTH/$DAY/$UUID.json"
-        },
-        "write_s3" : {
-            "bucket" : None,
-            "key" : "data/$TABLE/$YEAR/$MONTH/$DAY/$UUID.json"
-        }
-    }
+        print(f"==> nullify_sca_counts - Extracting....")
+        data = Nullify(**x).sca_counts()
+        upload(data,'nullify_sca_counts')
 
-    # == first we parse the config to find all the sources, and validate that we have all their required inputs
-    source = []
-    dest = []
-    with open(args.config,'rt',encoding='UTF-8') as y:
-        for cfg in yaml.safe_load_all(y):
+        # Error 500 from Nullify
+        # print(f"==> nullify_admin_repositories - Extracting....")
+        # data = Nullify(**x).admin_repositories()
+        # upload(data,'nullify_admin_repositories')
 
-            # every config must have "plugin"
-            if not 'plugin' in cfg:
-                C.log('ERROR','No "plugin" in config')
-            else:
-                if not cfg['plugin'] in VARS:
-                    C.log('ERROR',f"Unknown plugin \"{cfg['plugin']}\" specified")
-                else:
-                    if not 'variables' in cfg:
-                        C.log('ERROR','No "variables" in config')
-                    else:
-                        V = {}
-                        for k in VARS[cfg['plugin']]:
-                            d = VARS[cfg['plugin']][k]
-                            v = cfg['variables'].get(k)
-
-                            # == overwrite the value if its none, and we have a default
-                            if v is None and d is not None:
-                                v = d
-
-                            v = replace_env_variable(v)
-                            if v is None:
-                                C.log('ERROR',f"Variable {cfg['plugin']} / {k} is not set")
-                                break
-                            else:
-                                V[k] = v
-                        if 'table' not in cfg:
-                            cfg['table'] = cfg['plugin']
-                            C.log('WARNING',f"Setting table to {cfg['plugin']}")
-                        
-                        # -- if we made it this far, we have everything we need to kick off the plugin
-                        if cfg['plugin'].startswith('write_'):
-                            dest.append({ 'plugin' : cfg['plugin'], 'table' : cfg['table'], 'variables' : V})
-                        else:
-                            source.append({ 'plugin' : cfg['plugin'], 'table' : cfg['table'], 'variables' : V})
-
-    # now lets loop through it all
-    V = {
-        'YYYY'      : datetime.datetime.now(datetime.UTC).strftime('%Y'),
-        'MM'        : datetime.datetime.now(datetime.UTC).strftime('%m'),
-        'DD'        : datetime.datetime.now(datetime.UTC).strftime('%d')
-    }
-    for S in source:
-        V['UUID'] = str(uuid.uuid4())
-        V['TABLE'] = S['table']
-        V['PLUGIN'] = S['plugin']
-
-        C.log('INFO',f"Starting source {S['plugin']} - {S['table']}")
-        data = []
-
-        if S['plugin'] == 'jira_search':
-            data = Jira(**S['variables']).search(S['variables']['jql'])
-
-        if S['plugin'] == 'nullify_sca_events':
-            data = Nullify(**S['variables']).sca_events(S['variables']['fromTime'])
-
-        for D in dest:
-            if len(data) != 0:
-                C.log('INFO',f"Starting destination {D['plugin']}")
-
-                if D['plugin'] == 'write_json':
-                    path = D['variables']['output']
-                    for x in V:
-                        path = path.replace(f"${x}",V[x])
-                    
-                    C.log('INFO',f"Writing to local path = {path}")
-                    os.makedirs(os.path.dirname(path),exist_ok = True)        
-                    with open(path,"wt",encoding='UTF-8') as q:
-                        q.write(json.dumps(data,default=str))
-                    
-                if D['plugin'] == 'write_s3':
-                    key = D['variables']['key']
-                    for x in V:
-                        key = key.replace(f"${x}",V[x])
-                        try:
-                            boto3.client('s3').put_object(
-                                Body = json.dumps(data,default=str),
-                                Bucket = D['variables']['bucket'],
-                                Key = key,
-                                ACL='bucket-owner-full-control'
-                            )
-                        except botocore.exceptions.ClientError as error:
-                            C.log("ERROR",f"s3.put_object - {error.response['Error']['Code']}")
-            else:
-                C.log('WARNING','No data to be written')
-
+        
+    
 if __name__=='__main__':
     main()

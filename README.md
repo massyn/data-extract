@@ -2,48 +2,32 @@
 
 ## Synopsis
 
-Generic data extractor
+Generic data extractor that uses environment variables to determine what needs to be extracted
 
 ## Getting started
 
-## Source plugins
+### Environment variables
 
-### Jira (Search)
+#### Source Systems
 
-[API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/#api-rest-api-3-search-get)
+|**Source**|**Variable**|**Status**|
+|--|--|--|
+|**JIRA**|JIRA_ENDPOINT|Mandatory|
+||JIRA_USERNAME|Mandatory|
+||JIRA_PASSWORD|Mandatory|
+||JIRA_JQL|Mandatory|
+|**Nullify**|NULLIFY_TOKEN|Mandatory|
+||NULLIFY_ENDPOINT|Mandatory|
+||NULLIFY_GITHUB_OWNER_ID|Mandatory|
+||NULLIFY_FROM_TIME|Defaults to the last 7 days|
 
-```yaml
-plugin: jira_search
-table: ...
-variables:
-  username: ...
-  password: ...
-  endpoint: ...
-  jql: ...
-```
+#### Destinations
 
-## Destination plugins
-
-### write_json
-
-Write data to the local disk as a `json` file.
-
-```yaml
-plugin: write_json
-variables:
-  output: data/$TABLE/$YYYY/$MM/$DD/$UUID.json
-```
-
-### write_s3
-
-Write data to an AWS S3 bucket as a `json` file.
-
-```yaml
-plugin: write_s3
-variables:
-  bucket: my-fancy-bucket-name
-  key: data/$TABLE/$YYYY/$MM/$DD/$UUID.json
-```
+|**Target**|**Variable**|**Status**|
+|--|--|--|
+|**AWS S3**|UPLOAD_TARGET|Defaults to `data/$TAG/$YYYY/$MM/$DD/$UUID.json`|
+||UPLOAD_S3_BUCKET|Optional|
+|**Local Disk**|UPLOAD_TARGET|Defaults to `data/$TAG/$YYYY/$MM/$DD/$UUID.json`|
 
 ### Output variables
 
@@ -51,8 +35,7 @@ When specifying and output path, you can use any of the following variables when
 
 |**Variable**|**Usage**|
 |--|--|
-|`$TABLE`|The name of the table specified in the config|
-|`$PLUGIN`|The name of the plugin specified in the config|
+|`$TAG`|The name of the tag specified in the config|
 |`$YYYY`|Current year in UTC|
 |`$MM`|Current month in UTC|
 |`$DD`|Current day in UTC|
