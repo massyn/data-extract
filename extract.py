@@ -4,6 +4,7 @@ import uuid
 import datetime
 from collector.jira import Jira
 from collector.nullify import Nullify
+from collector.snyk import Snyk
 import boto3
 import botocore
 
@@ -71,6 +72,21 @@ def upload(data,tag):
                 print(f"ERROR - s3.put_object - {error.response['Error']['Code']}")
 
 def main():
+    # -- snyk
+    x = variables({
+        'SNYK_TOKEN' : None
+    })
+    if x:
+        print(f"==> snyk_orgs - Extracting....")
+        org = Snyk(**x).snyk_call('/rest/orgs')
+        upload(org,'snyk_ogs')
+
+        data = []
+        for o in org:
+            print(f"==> snyc_issues - Extracting for org {o['id']}...")
+            data += Snyk(**x).snyk_call(f"/rest/orgs/{o['id']}/issues")
+        upload(data,'snyk_issues')
+
     # -- jira
     x = variables({
         'JIRA_ENDPOINT' : None,
